@@ -364,6 +364,9 @@ const CheckoutIntentHandler = {
   },
   async handle(handlerInput) {
 
+    const slots = handlerInput.requestEnvelope.request.intent.slots;
+    const conformCheckout = slots.checkout.value;
+
     try {
       const apiAccessToken = Alexa.getApiAccessToken(
         handlerInput.requestEnvelope
@@ -381,33 +384,83 @@ const CheckoutIntentHandler = {
       const customerEmail = responseArray[0].data;
       const customerName = responseArray[1].data;
      
-      if (!customerEmail) {
+      if (!customerEmail || !customerName) {
         return handlerInput.responseBuilder
           .speak(
-            `looks like you dont have an email associated with this device, please set your email in Alexa App Settings`
+            `looks like you dont have an email or username associated with this device, please set your email in Alexa App Settings`
           )
           .getResponse();
       }
 
       try {
         
-        let cart = await Cart.findOneAndUpdate(
-          { customerEmail: customerEmail },
-          {
-            customerEmail: customerEmail,
-            customerName: customerName,
-            items: [],
-          },
-          { upsert: true }
-        ).exec();
+        if (conformCheckout === "Yes") {
+          
+          let cart = await Cart.findOne({
+            customerEmail
+          }).exec();
+  
+          if (!cart) {
+            return handlerInput.responseBuilder
+              .speak(
+                `Sorry you have no items in your cart.`
+              )
+              .getResponse();
+          }
+          if (cart?.items?.length === 0) {
+            return handlerInput.responseBuilder
+              .speak(
+                `Sorry you have no items in your cart.`
+              )
+              .getResponse();
+          }
+
+          let orderId = Math.floor(Math.random(100) * 1000000000).toString(16).toUpperCase();
+          let newOrder = new Order({
+            customerEmail,
+            customerName,
+            orderId: orderId,
+            items: cart.items,
+          })
+
+          newOrder = await newOrder.save()
+          if (!newOrder) {
+            return handlerInput.responseBuilder
+              .speak(
+                `Something went wrong in server.`
+              )
+              .getResponse();
+          }
+
+          cart = await Cart.findOneAndUpdate(
+            { customerEmail: customerEmail },
+            {
+              customerEmail: customerEmail,
+              customerName: customerName,
+              items: [],
+            },
+            { upsert: true }
+          ).exec();
+
+          console.log("Checkout call", customerEmail, customerName);
+          return handlerInput.responseBuilder
+            .speak(`Your order has been placed, Your order id is ${orderId}`)
+            .reprompt(`feel free to add more dishes or say checkout to complete your order`)
+            .getResponse();
+          
+        }
+        // let cart = await Cart.findOneAndUpdate(
+        //   { customerEmail: customerEmail },
+        //   {
+        //     customerEmail: customerEmail,
+        //     customerName: customerName,
+        //     items: [],
+        //   },
+        //   { upsert: true }let
+        // ).exec();
 
         
-
-        console.log("Cart Items: ", cart);
-        return handlerInput.responseBuilder
-          .speak("Your card has been clear")
-          .reprompt(`feel free to add more dishes or say checkout to complete your order`)
-          .getResponse();
+        
       } catch (err) {
         console.log("error in db: ", err);
         return handlerInput.responseBuilder

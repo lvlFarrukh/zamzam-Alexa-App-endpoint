@@ -1,14 +1,14 @@
 import mongoose from 'mongoose';
 
 const order = mongoose.Schema({
-    userName: String,
-    userEmail: String,
+    customerName: String,
+    customerEmail: String,
     orderId: String,
     items: [{
         dishName: String,
         quantity: Number,
     }],
-    totalBill: Number,
+    totalBill: {type: Number, default: 0},
     createdOn: { type: Date, default: Date.now },
 })
 
